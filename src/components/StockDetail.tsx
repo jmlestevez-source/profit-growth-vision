@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { StockAnalysis, StockFinancials } from "@/types/finance";
 import { formatCurrency, formatPercentage } from "@/services/financeService";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, ArrowDown, TrendingUp, TrendingDown, ChartBar, FileChartLine } from "lucide-react";
+import { ArrowUp, ArrowDown, TrendingUp, TrendingDown, ChartBar, FileChartLine, AlertTriangle } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 
@@ -12,9 +12,10 @@ interface StockDetailProps {
   stockAnalysis: StockAnalysis;
   financials: StockFinancials[];
   onBack: () => void;
+  usingSampleData?: boolean;
 }
 
-const StockDetail: React.FC<StockDetailProps> = ({ stockAnalysis, financials, onBack }) => {
+const StockDetail: React.FC<StockDetailProps> = ({ stockAnalysis, financials, onBack, usingSampleData = false }) => {
   // Preparar datos para los gráficos
   const chartData = [...financials]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -38,6 +39,15 @@ const StockDetail: React.FC<StockDetailProps> = ({ stockAnalysis, financials, on
           </Badge>
         </div>
       </div>
+
+      {usingSampleData && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-300 flex items-center gap-2">
+          <AlertTriangle size={18} />
+          <span>
+            <strong>Datos simulados:</strong> Los datos que ves son simulados debido a restricciones de la API. Para datos reales, se requiere una suscripción premium a Financial Modeling Prep.
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6">
         <Card>

@@ -20,6 +20,7 @@ const Index = () => {
   const [stocksAnalysis, setStocksAnalysis] = useState<StockAnalysis[]>([]);
   const [financialsData, setFinancialsData] = useState<{ [key: string]: StockFinancials[] }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [usingSampleData, setUsingSampleData] = useState(false);
 
   // Cargar lista de acciones al inicio
   useEffect(() => {
@@ -47,6 +48,7 @@ const Index = () => {
     try {
       const analysisResults: StockAnalysis[] = [];
       const financialsResults: { [key: string]: StockFinancials[] } = {};
+      let usingSampleDataFlag = false;
 
       for (const stock of stocks) {
         try {
@@ -56,6 +58,11 @@ const Index = () => {
           // Obtener datos financieros trimestrales
           const quarterlyData = await getQuarterlyFinancials(stock.symbol);
           if (quarterlyData.length === 0) continue;
+          
+          // Si estamos usando datos simulados, marcar la bandera
+          if (quarterlyData[0].revenue > 0 && !quarterlyData[0].date.includes("T")) {
+            usingSampleDataFlag = true;
+          }
           
           financialsResults[stock.symbol] = quarterlyData;
           
@@ -73,7 +80,13 @@ const Index = () => {
 
       setStocksAnalysis(analysisResults);
       setFinancialsData(financialsResults);
-      toast.success("Datos financieros actualizados");
+      setUsingSampleData(usingSampleDataFlag);
+      
+      if (usingSampleDataFlag) {
+        toast.warning("Usando datos simulados debido a restricciones de la API. Para datos reales, se requiere una suscripción premium.");
+      } else {
+        toast.success("Datos financieros actualizados");
+      }
     } catch (error) {
       console.error("Error fetching stocks data:", error);
       toast.error("Error al cargar datos financieros");
@@ -124,6 +137,7 @@ const Index = () => {
             stockAnalysis={selectedStockAnalysis}
             financials={selectedStockFinancials}
             onBack={handleBackToList}
+            usingSampleData={usingSampleData}
           />
         ) : (
           <div className="space-y-6">
@@ -132,6 +146,11 @@ const Index = () => {
               <p className="text-muted-foreground">
                 Monitoriza el crecimiento de tus acciones favoritas
               </p>
+              {usingSampleData && (
+                <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-300">
+                  <strong>Nota:</strong> Usando datos simulados debido a restricciones de la API. Para datos reales, se requiere una suscripción premium a Financial Modeling Prep.
+                </div>
+              )}
             </div>
             <StocksTable 
               stocksAnalysis={stocksAnalysis} 
