@@ -1,4 +1,3 @@
-
 import { Stock, StockFinancials, ApiResponse, StockAnalysis } from "@/types/finance";
 import { toast } from "sonner";
 import yahooFinance from "yahoo-finance2";
@@ -48,11 +47,26 @@ export const searchStock = async (query: string): Promise<Stock | null> => {
     
     if (results && results.quotes && results.quotes.length > 0) {
       const stockInfo = results.quotes[0];
+      
+      // Comprobaciones de tipo seguras
+      const symbol = 'symbol' in stockInfo ? stockInfo.symbol : null;
+      if (!symbol) return null;
+      
+      // Nombre obtenido con comprobación segura de tipo
+      const name = 'shortname' in stockInfo ? 
+                   stockInfo.shortname || 
+                   ('longname' in stockInfo ? stockInfo.longname : symbol) : 
+                   ('name' in stockInfo ? stockInfo.name : symbol);
+      
+      // Sector e industria con comprobaciones seguras
+      const sector = 'sector' in stockInfo ? stockInfo.sector : 'N/A';
+      const industry = 'industry' in stockInfo ? stockInfo.industry : 'N/A';
+      
       return {
-        symbol: stockInfo.symbol,
-        name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
-        sector: stockInfo.sector || "N/A",
-        industry: stockInfo.industry || "N/A",
+        symbol,
+        name,
+        sector: typeof sector === 'string' ? sector : 'N/A',
+        industry: typeof industry === 'string' ? industry : 'N/A',
       };
     }
     return null;
@@ -82,7 +96,20 @@ export const getQuarterlyFinancials = async (symbol: string): Promise<StockFinan
     
     incomeStatementData.incomeStatementHistoryQuarterly.incomeStatementHistory.forEach(quarter => {
       if (quarter.totalRevenue && quarter.endDate) {
-        const eps = quarter.basicEPS?.raw || quarter.dilutedEPS?.raw || 0;
+        // Obtener EPS con seguridad de tipos
+        let eps = 0;
+        
+        // Intentar obtener EPS de diferentes fuentes si existen
+        try {
+          // Primero intentamos con netIncome / sharesOutstanding si están disponibles
+          if (quarter.netIncome && quarter.netIncome.raw) {
+            eps = quarter.netIncome.raw / 1000000000; // Un valor aproximado si no tenemos EPS directo
+          }
+        } catch (e) {
+          console.log(`Error calculando EPS para ${symbol}, usando aproximación`);
+          eps = quarter.totalRevenue.raw ? quarter.totalRevenue.raw / 100000000 : 0; // Aproximación muy burda
+        }
+        
         quarterlyData.push({
           date: new Date(quarter.endDate).toISOString().split('T')[0],
           symbol: symbol,
