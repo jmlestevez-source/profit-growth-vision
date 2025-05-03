@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import Header from "@/components/Header";
@@ -11,7 +10,7 @@ import {
   getQuarterlyFinancials, 
   getCurrentPrice, 
   analyzeStockFinancials 
-} from "@/services/financeService";
+} from "@/services";
 
 const Index = () => {
   const [stocks, setStocks] = useState<Stock[]>([]);

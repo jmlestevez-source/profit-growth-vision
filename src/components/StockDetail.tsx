@@ -2,7 +2,7 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StockAnalysis, StockFinancials } from "@/types/finance";
-import { formatCurrency, formatPercentage } from "@/services/financeService";
+import { formatCurrency, formatPercentage } from "@/services";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, ArrowDown, TrendingUp, TrendingDown, ChartBar, FileChartLine, AlertTriangle } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";

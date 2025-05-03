@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { searchStock, addStock } from "@/services/financeService";
+import { searchStock, addStock } from "@/services";
 import { Stock } from "@/types/finance";
 
 interface AddStockDialogProps {

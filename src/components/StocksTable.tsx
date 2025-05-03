@@ -3,7 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StockAnalysis } from "@/types/finance";
-import { formatCurrency, formatPercentage, removeStock } from "@/services/financeService";
+import { formatCurrency, formatPercentage, removeStock } from "@/services";
 import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
