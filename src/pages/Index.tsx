@@ -59,8 +59,8 @@ const Index = () => {
           const quarterlyData = await getQuarterlyFinancials(stock.symbol);
           if (quarterlyData.length === 0) continue;
           
-          // Si estamos usando datos simulados, marcar la bandera
-          if (quarterlyData[0].revenue > 0 && !quarterlyData[0].date.includes("T")) {
+          // Comprobar si estamos usando datos simulados
+          if (quarterlyData[0].revenue > 0 && !quarterlyData[0].date.includes("-")) {
             usingSampleDataFlag = true;
           }
           
@@ -83,7 +83,7 @@ const Index = () => {
       setUsingSampleData(usingSampleDataFlag);
       
       if (usingSampleDataFlag) {
-        toast.warning("Usando datos simulados debido a restricciones de la API. Para datos reales, se requiere una suscripción premium.");
+        toast.warning("Usando algunos datos simulados debido a limitaciones de la API. Los datos disponibles son los mostrados.");
       } else {
         toast.success("Datos financieros actualizados");
       }
@@ -148,7 +148,7 @@ const Index = () => {
               </p>
               {usingSampleData && (
                 <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-300">
-                  <strong>Nota:</strong> Usando datos simulados debido a restricciones de la API. Para datos reales, se requiere una suscripción premium a Financial Modeling Prep.
+                  <strong>Nota:</strong> Algunos datos pueden ser simulados debido a limitaciones en la API de Yahoo Finance. Se muestra la información disponible.
                 </div>
               )}
             </div>

@@ -1,9 +1,7 @@
 
 import { Stock, StockFinancials, ApiResponse, StockAnalysis } from "@/types/finance";
 import { toast } from "sonner";
-
-const API_KEY = "FedUgaGEN9Pv19qgVxh2nHw0JWg5V6uh"; // Financial Modeling Prep API key
-const BASE_URL = "https://financialmodelingprep.com/api/v3";
+import yahooFinance from "yahoo-finance2";
 
 // Lista de acciones de ejemplo para comenzar
 const DEFAULT_STOCKS: Stock[] = [
@@ -43,18 +41,18 @@ export const removeStock = (symbol: string): void => {
   toast.success(`${symbol} eliminada de tu watchlist`);
 };
 
-// Buscar información de una acción
+// Buscar información de una acción usando Yahoo Finance
 export const searchStock = async (query: string): Promise<Stock | null> => {
   try {
-    const response = await fetch(`${BASE_URL}/search?query=${query}&limit=1&apikey=${API_KEY}`);
-    const data = await response.json();
+    const results = await yahooFinance.search(query);
     
-    if (data && data.length > 0) {
+    if (results && results.quotes && results.quotes.length > 0) {
+      const stockInfo = results.quotes[0];
       return {
-        symbol: data[0].symbol,
-        name: data[0].name,
-        sector: data[0].sector || "N/A",
-        industry: data[0].industry || "N/A",
+        symbol: stockInfo.symbol,
+        name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
+        sector: stockInfo.sector || "N/A",
+        industry: stockInfo.industry || "N/A",
       };
     }
     return null;
@@ -65,7 +63,68 @@ export const searchStock = async (query: string): Promise<Stock | null> => {
   }
 };
 
-// Generar datos financieros simulados para una acción
+// Obtener datos financieros trimestrales
+export const getQuarterlyFinancials = async (symbol: string): Promise<StockFinancials[]> => {
+  try {
+    // Obtener datos financieros históricos de Yahoo Finance
+    const earningsData = await yahooFinance.quoteSummary(symbol, { modules: ["earningsTrend", "earningsHistory"] });
+    const incomeStatementData = await yahooFinance.quoteSummary(symbol, { modules: ["incomeStatementHistory", "incomeStatementHistoryQuarterly"] });
+    
+    // Verificar si tenemos datos trimestrales
+    if (!incomeStatementData.incomeStatementHistoryQuarterly || 
+        incomeStatementData.incomeStatementHistoryQuarterly.incomeStatementHistory.length === 0) {
+      console.log(`Sin datos trimestrales disponibles para ${symbol}, usando datos simulados`);
+      return generateMockFinancials(symbol);
+    }
+
+    // Procesar los datos trimestrales
+    const quarterlyData: StockFinancials[] = [];
+    
+    incomeStatementData.incomeStatementHistoryQuarterly.incomeStatementHistory.forEach(quarter => {
+      if (quarter.totalRevenue && quarter.endDate) {
+        const eps = quarter.basicEPS?.raw || quarter.dilutedEPS?.raw || 0;
+        quarterlyData.push({
+          date: new Date(quarter.endDate).toISOString().split('T')[0],
+          symbol: symbol,
+          period: 'quarter',
+          revenue: quarter.totalRevenue.raw || 0,
+          eps: eps
+        });
+      }
+    });
+    
+    // Si no pudimos obtener suficientes datos, usar datos simulados
+    if (quarterlyData.length < 5) {
+      console.log(`Datos insuficientes para ${symbol}, usando datos simulados`);
+      return generateMockFinancials(symbol);
+    }
+    
+    return quarterlyData;
+  } catch (error) {
+    console.error(`Error fetching quarterly financials for ${symbol}:`, error);
+    toast.error(`Error obteniendo datos financieros de ${symbol}. Usando datos simulados.`);
+    return generateMockFinancials(symbol);
+  }
+};
+
+// Obtener precio actual de la acción
+export const getCurrentPrice = async (symbol: string): Promise<number | null> => {
+  try {
+    const quote = await yahooFinance.quote(symbol);
+    
+    if (quote && quote.regularMarketPrice) {
+      return quote.regularMarketPrice;
+    }
+    console.log(`Sin datos de precio para ${symbol}, generando precio simulado`);
+    return 100 + Math.random() * 400; // Precio simulado entre $100 y $500
+  } catch (error) {
+    console.error(`Error fetching price for ${symbol}:`, error);
+    toast.error(`Error obteniendo el precio de ${symbol}`);
+    return 100 + Math.random() * 400; // Precio simulado en caso de error
+  }
+};
+
+// Generar datos financieros simulados para una acción (como fallback)
 const generateMockFinancials = (symbol: string): StockFinancials[] => {
   console.log(`Generando datos simulados para ${symbol} debido a que la API no proporcionó datos reales`);
   const today = new Date();
@@ -91,56 +150,6 @@ const generateMockFinancials = (symbol: string): StockFinancials[] => {
   }
   
   return mockData;
-};
-
-// Obtener datos financieros trimestrales
-export const getQuarterlyFinancials = async (symbol: string): Promise<StockFinancials[]> => {
-  try {
-    const response = await fetch(`${BASE_URL}/income-statement/${symbol}?period=quarter&limit=12&apikey=${API_KEY}`);
-    const data = await response.json();
-    
-    // Verificar si la respuesta contiene un mensaje de error de API
-    if (data && data["Error Message"] && data["Error Message"].includes("Exclusive Endpoint")) {
-      console.log(`API Premium restringida para ${symbol}, usando datos simulados`);
-      return generateMockFinancials(symbol);
-    }
-    
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      console.log(`Sin datos financieros disponibles para ${symbol}, usando datos simulados`);
-      return generateMockFinancials(symbol);
-    }
-
-    return data.map(item => ({
-      date: item.date,
-      symbol: symbol,
-      period: 'quarter',
-      revenue: item.revenue || 0,
-      eps: item.epsdiluted || 0
-    }));
-  } catch (error) {
-    console.error(`Error fetching quarterly financials for ${symbol}:`, error);
-    toast.error(`Error obteniendo datos financieros de ${symbol}. Usando datos simulados.`);
-    return generateMockFinancials(symbol);
-  }
-};
-
-// Obtener precio actual de la acción
-export const getCurrentPrice = async (symbol: string): Promise<number | null> => {
-  try {
-    const response = await fetch(`${BASE_URL}/quote/${symbol}?apikey=${API_KEY}`);
-    const data = await response.json();
-    
-    if (data && data.length > 0 && data[0].price) {
-      return data[0].price;
-    }
-    // Si no hay datos disponibles, generar un precio aleatorio realista
-    console.log(`Sin datos de precio para ${symbol}, generando precio simulado`);
-    return 100 + Math.random() * 400; // Precio simulado entre $100 y $500
-  } catch (error) {
-    console.error(`Error fetching price for ${symbol}:`, error);
-    toast.error(`Error obteniendo el precio de ${symbol}`);
-    return 100 + Math.random() * 400; // Precio simulado en caso de error
-  }
 };
 
 // Analizar los datos financieros para obtener métricas de crecimiento
