@@ -1,35 +1,31 @@
 
 import { Stock } from "@/types/finance";
 import { toast } from "sonner";
-import yahooFinance from "yahoo-finance2";
 
-// Buscar información de una acción usando Yahoo Finance
+// Modified search function to avoid using yahoo-finance2 directly
 export const searchStock = async (query: string): Promise<Stock | null> => {
   try {
-    const results = await yahooFinance.search(query);
+    // Yahoo Finance search API URL
+    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0&enableFuzzyQuery=false`;
     
-    if (results && results.quotes && results.quotes.length > 0) {
-      const stockInfo = results.quotes[0];
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.quotes && data.quotes.length > 0) {
+      const stockInfo = data.quotes[0];
       
-      // Comprobaciones de tipo seguras
-      const symbol = 'symbol' in stockInfo ? stockInfo.symbol : null;
-      if (!symbol) return null;
-      
-      // Nombre obtenido con comprobación segura de tipo
-      const name = 'shortname' in stockInfo ? 
-                   stockInfo.shortname || 
-                   ('longname' in stockInfo ? stockInfo.longname : symbol) : 
-                   ('name' in stockInfo ? stockInfo.name : symbol);
-      
-      // Sector e industria con comprobaciones seguras
-      const sector = 'sector' in stockInfo ? stockInfo.sector : 'N/A';
-      const industry = 'industry' in stockInfo ? stockInfo.industry : 'N/A';
+      if (!stockInfo.symbol) return null;
       
       return {
-        symbol,
-        name,
-        sector: typeof sector === 'string' ? sector : 'N/A',
-        industry: typeof industry === 'string' ? industry : 'N/A',
+        symbol: stockInfo.symbol,
+        name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
+        sector: stockInfo.sector || 'N/A',
+        industry: stockInfo.industry || 'N/A',
       };
     }
     return null;

@@ -27,6 +27,11 @@ export default defineConfig(({ mode }) => ({
     'process': { env: {} }
   },
   optimizeDeps: {
-    exclude: ['yahoo-finance2'] // Exclude yahoo-finance2 from optimization to avoid node dependency issues
+    exclude: ['yahoo-finance2', 'tough-cookie'] // Exclude problematic Node.js packages from optimization
   },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true // Might help with mixed module formats
+    }
+  }
 }));
