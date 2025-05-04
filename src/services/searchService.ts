@@ -2,21 +2,14 @@
 import { Stock } from "@/types/finance";
 import { toast } from "sonner";
 
-// Función de búsqueda que evita usar yahoo-finance2 directamente
+// Función de búsqueda mejorada para obtener información de stocks
 export const searchStock = async (query: string): Promise<Stock | null> => {
   try {
-    // Intentamos primero con un proxy CORS
-    const corsProxy = "https://cors-anywhere.herokuapp.com/";
-    const yahooUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0&enableFuzzyQuery=false`;
+    console.log(`Buscando información para: ${query}`);
     
+    // 1. Intentamos buscar usando nuestro proxy interno
     try {
-      // Primer intento: usar proxy CORS
-      const response = await fetch(`${corsProxy}${yahooUrl}`, {
-        headers: {
-          'Origin': window.location.origin,
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
+      const response = await fetch(`/yahoo-proxy/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0&enableFuzzyQuery=false`);
       
       if (response.ok) {
         const data = await response.json();
@@ -28,6 +21,26 @@ export const searchStock = async (query: string): Promise<Stock | null> => {
           
           console.log(`Stock encontrado vía proxy: ${stockInfo.symbol}`);
           
+          // Intentamos obtener información adicional del sector/industria
+          try {
+            const detailResponse = await fetch(`/yahoo-proxy/v10/finance/quoteSummary/${stockInfo.symbol}?modules=assetProfile`);
+            
+            if (detailResponse.ok) {
+              const detailData = await detailResponse.json();
+              const profile = detailData?.quoteSummary?.result?.[0]?.assetProfile;
+              
+              return {
+                symbol: stockInfo.symbol,
+                name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
+                sector: profile?.sector || stockInfo.sector || 'N/A',
+                industry: profile?.industry || stockInfo.industry || 'N/A',
+              };
+            }
+          } catch (detailError) {
+            console.log(`Error obteniendo detalles adicionales para ${stockInfo.symbol}`);
+          }
+          
+          // Si no pudimos obtener detalles, devolvemos la información básica
           return {
             symbol: stockInfo.symbol,
             name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
@@ -37,33 +50,48 @@ export const searchStock = async (query: string): Promise<Stock | null> => {
         }
       }
     } catch (proxyError) {
-      console.log(`Error en proxy CORS para búsqueda de ${query}, usando enfoque alternativo`);
+      console.log(`Error en proxy para búsqueda de ${query}:`, proxyError);
     }
     
-    // Segundo intento: petición directa
+    // 2. Intentar con API alternativa
     try {
-      const directResponse = await fetch(yahooUrl);
+      const alternativeUrl = `https://yfapi.net/v6/finance/autocomplete?region=US&lang=en&query=${encodeURIComponent(query)}`;
       
-      if (directResponse.ok) {
-        const data = await directResponse.json();
+      const alternativeResponse = await fetch(alternativeUrl, {
+        headers: {
+          'accept': 'application/json',
+          'X-API-KEY': 'demo'
+        }
+      });
+      
+      if (alternativeResponse.ok) {
+        const data = await alternativeResponse.json();
         
-        if (data && data.quotes && data.quotes.length > 0) {
-          const stockInfo = data.quotes[0];
-          
-          if (!stockInfo.symbol) return null;
-          
-          console.log(`Stock encontrado directamente: ${stockInfo.symbol}`);
+        if (data?.ResultSet?.Result && data.ResultSet.Result.length > 0) {
+          const result = data.ResultSet.Result[0];
           
           return {
-            symbol: stockInfo.symbol,
-            name: stockInfo.shortname || stockInfo.longname || stockInfo.symbol,
-            sector: stockInfo.sector || 'N/A',
-            industry: stockInfo.industry || 'N/A',
+            symbol: result.symbol,
+            name: result.name || result.symbol,
+            sector: 'N/A',
+            industry: 'N/A'
           };
         }
       }
-    } catch (directError) {
-      console.log(`Error en petición directa de búsqueda para ${query}`);
+    } catch (altError) {
+      console.log(`Error en API alternativa para búsqueda de ${query}`);
+    }
+    
+    // 3. Si estamos buscando un ticker específico (formato de ticker probable)
+    if (query.length < 6 && query.toUpperCase() === query) {
+      console.log(`Asumiendo que ${query} es un ticker válido`);
+      
+      return {
+        symbol: query,
+        name: query,
+        sector: 'N/A', 
+        industry: 'N/A'
+      };
     }
     
     console.log(`No se encontraron resultados para la búsqueda: ${query}`);

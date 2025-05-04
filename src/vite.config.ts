@@ -10,11 +10,15 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      // Configura un proxy para las peticiones a Yahoo Finance
+      // Proxy más específico para Yahoo Finance
       '/yahoo-proxy': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/yahoo-proxy/, '')
+        rewrite: (path) => path.replace(/^\/yahoo-proxy/, ''),
+        secure: false,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
+        }
       }
     }
   },
@@ -29,17 +33,16 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    // Provide proper shims for the process object Yahoo Finance might be using
     'process.env': {},
     'process.browser': true,
     'process': { env: {} }
   },
   optimizeDeps: {
-    exclude: ['yahoo-finance2', 'tough-cookie'] // Exclude problematic Node.js packages from optimization
+    exclude: ['yahoo-finance2', 'tough-cookie'] // Excluir módulos Node.js
   },
   build: {
     commonjsOptions: {
-      transformMixedEsModules: true // Might help with mixed module formats
+      transformMixedEsModules: true
     }
   }
 }));

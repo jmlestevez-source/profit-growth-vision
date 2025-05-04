@@ -3,136 +3,175 @@ import { StockFinancials } from "@/types/finance";
 import { toast } from "sonner";
 import { generateMockFinancials } from "./mockDataService";
 
-// Obtener datos financieros trimestrales usando la API fetch
+// Obtiene datos financieros trimestrales utilizando el proxy interno de Vite
 export const getQuarterlyFinancials = async (symbol: string): Promise<StockFinancials[]> => {
   try {
-    // Intentamos obtener datos a través de un proxy CORS para evitar restricciones
-    const corsProxy = "https://cors-anywhere.herokuapp.com/";
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+    console.log(`Intentando obtener datos financieros para ${symbol}`);
     
+    // 1. Intentamos obtener datos a través del proxy configurado en vite.config.ts
     try {
-      // Primer intento: usar proxy CORS
-      const response = await fetch(`${corsProxy}${yahooUrl}`, {
+      // Endpoint para obtener datos de quotes
+      const response = await fetch(`/yahoo-proxy/v8/finance/chart/${symbol}?interval=1d&range=2y&indicators=quote`);
+      
+      if (response.ok) {
+        const priceData = await response.json();
+        
+        // Si obtenemos datos de precio con éxito, intentamos obtener datos financieros
+        if (priceData?.chart?.result?.[0]) {
+          try {
+            // Endpoint para información financiera más detallada
+            const financialsResponse = await fetch(`/yahoo-proxy/v10/finance/quoteSummary/${symbol}?modules=incomeStatementHistory,incomeStatementHistoryQuarterly`);
+            
+            if (financialsResponse.ok) {
+              const financialsData = await financialsResponse.json();
+              
+              // Extraer datos de informes trimestrales
+              const quarterlyResults = financialsData?.quoteSummary?.result?.[0]?.incomeStatementHistoryQuarterly?.incomeStatementHistory;
+              
+              if (quarterlyResults && quarterlyResults.length > 0) {
+                console.log(`Datos trimestrales obtenidos para ${symbol}:`, quarterlyResults.length, "trimestres");
+                
+                const currentPrice = priceData.chart.result[0].meta.regularMarketPrice || 0;
+                
+                // Transformar datos al formato requerido por la aplicación
+                return quarterlyResults.map((quarter: any) => ({
+                  date: new Date(quarter.endDate.raw * 1000).toISOString().split('T')[0],
+                  symbol: symbol,
+                  period: 'quarter',
+                  revenue: quarter.totalRevenue?.raw || 0,
+                  eps: quarter.dilutedEPS?.raw || 0
+                }));
+              }
+            }
+          } catch (financialsError) {
+            console.error(`Error obteniendo detalles financieros para ${symbol}:`, financialsError);
+          }
+        }
+        
+        // Si llegamos aquí con datos de precio pero sin datos financieros, generamos datos simulados
+        // pero escalados según el precio real para mayor realismo
+        const currentPrice = priceData.chart.result[0].meta.regularMarketPrice || 0;
+        console.log(`Usando precio real ${currentPrice} para generar datos simulados de ${symbol}`);
+        
+        const mockFinancials = generateMockFinancials(symbol);
+        const priceMultiplier = currentPrice / 100;
+        
+        return mockFinancials.map(quarter => ({
+          ...quarter,
+          revenue: quarter.revenue * priceMultiplier,
+          eps: quarter.eps * priceMultiplier * 0.01  // Ajuste de EPS más realista
+        }));
+      }
+    } catch (error) {
+      console.error(`Error en proxy para ${symbol}:`, error);
+    }
+    
+    // 2. Si el proxy falla, intentamos YahooFinanceAPI pública como alternativa
+    try {
+      // Este endpoint proporciona algunos datos básicos y funciona en navegadores
+      const alternativeUrl = `https://yfapi.net/v6/finance/quote?region=US&lang=en&symbols=${symbol}`;
+      
+      const alternativeResponse = await fetch(alternativeUrl, {
         headers: {
-          'Origin': window.location.origin,
-          'X-Requested-With': 'XMLHttpRequest'
+          'accept': 'application/json',
+          'X-API-KEY': 'demo' // Clave de demostración, limitada pero suficiente para pruebas
         }
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Si tenemos datos válidos, procesamos
-        if (data?.chart?.result?.[0]) {
-          console.log(`Datos obtenidos vía proxy para ${symbol}`);
-          return processYahooFinanceData(data, symbol);
+      if (alternativeResponse.ok) {
+        const data = await alternativeResponse.json();
+        if (data?.quoteResponse?.result?.[0]) {
+          const stockInfo = data.quoteResponse.result[0];
+          const price = stockInfo.regularMarketPrice || 100;
+          
+          console.log(`Datos alternativa para ${symbol}, precio: ${price}`);
+          
+          // Generamos datos financieros simulados pero usando el precio real como base
+          const mockFinancials = generateMockFinancials(symbol);
+          const priceMultiplier = price / 100;
+          
+          return mockFinancials.map(quarter => ({
+            ...quarter,
+            revenue: quarter.revenue * priceMultiplier,
+            eps: quarter.eps * priceMultiplier * 0.01
+          }));
         }
       }
-    } catch (proxyError) {
-      console.log(`Error en proxy CORS para ${symbol}, usando enfoque alternativo`);
+    } catch (altError) {
+      console.error(`Error en API alternativa para ${symbol}:`, altError);
     }
     
-    // Segundo intento: petición directa (puede fallar por CORS)
-    try {
-      const directResponse = await fetch(yahooUrl);
-      
-      if (directResponse.ok) {
-        const data = await directResponse.json();
-        
-        if (data?.chart?.result?.[0]) {
-          console.log(`Datos obtenidos directamente para ${symbol}`);
-          return processYahooFinanceData(data, symbol);
-        }
-      }
-    } catch (directError) {
-      console.log(`Error en petición directa para ${symbol}`);
-    }
-    
-    // Si llegamos aquí, ningún método funcionó - usamos datos simulados
-    console.log(`Sin datos disponibles para ${symbol}, usando datos simulados`);
+    // 3. Como último recurso, generamos datos completamente simulados
+    console.log(`Sin datos disponibles para ${symbol}, usando datos simulados genéricos`);
     return generateMockFinancials(symbol);
     
   } catch (error) {
-    console.error(`Error fetching quarterly financials for ${symbol}:`, error);
+    console.error(`Error completo obteniendo datos financieros para ${symbol}:`, error);
     toast.error(`Error obteniendo datos financieros de ${symbol}. Usando datos simulados.`);
     return generateMockFinancials(symbol);
   }
 };
 
-// Procesar datos de Yahoo Finance para crear StockFinancials
-const processYahooFinanceData = (data: any, symbol: string): StockFinancials[] => {
-  const result = data.chart.result[0];
-  const price = result.meta.regularMarketPrice || 100;
-  
-  // Debido a limitaciones con las API públicas, creamos datos simulados
-  // pero basados en el precio real para hacerlos más realistas
-  const mockData = generateMockFinancials(symbol);
-  const priceMultiplier = price / 100; // Ajustamos según el precio real
-  
-  // Datos simulados con precios más realistas
-  return mockData.map(quarter => ({
-    ...quarter,
-    revenue: quarter.revenue * priceMultiplier,
-    eps: quarter.eps * priceMultiplier * 0.1
-  }));
-};
-
-// Obtener precio actual de la acción
+// Obtener precio actual de la acción con mejor precisión
 export const getCurrentPrice = async (symbol: string): Promise<number | null> => {
   try {
-    // Intentamos obtener el precio a través de un proxy CORS
-    const corsProxy = "https://cors-anywhere.herokuapp.com/";
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+    console.log(`Intentando obtener precio actual para ${symbol}`);
     
+    // 1. Intentamos con el proxy interno de Vite
     try {
-      // Primer intento: usar proxy CORS
-      const response = await fetch(`${corsProxy}${yahooUrl}`, {
-        headers: {
-          'Origin': window.location.origin,
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
+      const response = await fetch(`/yahoo-proxy/v8/finance/chart/${symbol}?interval=1d`);
       
       if (response.ok) {
         const data = await response.json();
         
         if (data?.chart?.result?.[0]?.meta?.regularMarketPrice) {
-          console.log(`Precio obtenido vía proxy para ${symbol}: ${data.chart.result[0].meta.regularMarketPrice}`);
-          return data.chart.result[0].meta.regularMarketPrice;
+          const price = data.chart.result[0].meta.regularMarketPrice;
+          console.log(`Precio obtenido para ${symbol}: $${price}`);
+          return price;
         }
       }
     } catch (proxyError) {
-      console.log(`Error en proxy CORS para precio de ${symbol}, usando enfoque alternativo`);
+      console.error(`Error en proxy para precio de ${symbol}:`, proxyError);
     }
     
-    // Segundo intento: petición directa
+    // 2. Intentamos con la API alternativa
     try {
-      const directResponse = await fetch(yahooUrl);
+      const alternativeUrl = `https://yfapi.net/v6/finance/quote?region=US&lang=en&symbols=${symbol}`;
       
-      if (directResponse.ok) {
-        const data = await directResponse.json();
-        
-        if (data?.chart?.result?.[0]?.meta?.regularMarketPrice) {
-          console.log(`Precio obtenido directamente para ${symbol}: ${data.chart.result[0].meta.regularMarketPrice}`);
-          return data.chart.result[0].meta.regularMarketPrice;
+      const alternativeResponse = await fetch(alternativeUrl, {
+        headers: {
+          'accept': 'application/json',
+          'X-API-KEY': 'demo'
+        }
+      });
+      
+      if (alternativeResponse.ok) {
+        const data = await alternativeResponse.json();
+        if (data?.quoteResponse?.result?.[0]?.regularMarketPrice) {
+          const price = data.quoteResponse.result[0].regularMarketPrice;
+          console.log(`Precio alternativo para ${symbol}: $${price}`);
+          return price;
         }
       }
-    } catch (directError) {
-      console.log(`Error en petición directa de precio para ${symbol}`);
+    } catch (altError) {
+      console.error(`Error en API alternativa para precio de ${symbol}:`, altError);
     }
     
-    // Si no podemos obtener el precio, generamos uno simulado
-    const simulatedPrice = 100 + Math.random() * 400;
-    console.log(`Usando precio simulado para ${symbol}: ${simulatedPrice}`);
+    // 3. Si todo falla, generamos un precio simulado más realista basado en el ticker
+    // Generamos un "hash" simple del símbolo para tener consistencia
+    const symbolValue = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const simulatedPrice = 50 + (symbolValue % 450); // Precio entre $50 y $500
+    
+    console.log(`Generando precio simulado para ${symbol}: $${simulatedPrice}`);
     return simulatedPrice;
     
   } catch (error) {
-    console.error(`Error fetching price for ${symbol}:`, error);
-    // No mostrar error al usuario para no saturarlo con notificaciones
+    console.error(`Error completo obteniendo precio para ${symbol}:`, error);
     
-    // Precio simulado entre $100 y $500
-    const simulatedPrice = 100 + Math.random() * 400;
-    console.log(`Usando precio simulado para ${symbol}: ${simulatedPrice}`);
+    // Precio simulado pero consistente para el mismo ticker
+    const symbolValue = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const simulatedPrice = 50 + (symbolValue % 450); // Precio entre $50 y $500
+    
     return simulatedPrice;
   }
 };
