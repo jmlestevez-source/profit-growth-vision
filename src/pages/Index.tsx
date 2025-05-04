@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import Header from "@/components/Header";
@@ -20,18 +21,19 @@ const Index = () => {
   const [financialsData, setFinancialsData] = useState<{ [key: string]: StockFinancials[] }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [usingSampleData, setUsingSampleData] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Cargar lista de acciones al inicio
   useEffect(() => {
     loadStocksFromStorage();
   }, []);
 
-  // Observar cambios en la lista de acciones y actualizar datos
+  // Observar cambios en la lista de acciones y actualizaciones forzadas
   useEffect(() => {
     if (stocks.length > 0) {
       fetchStocksData();
     }
-  }, [stocks]);
+  }, [stocks, refreshTrigger]);
 
   // Cargar acciones desde el almacenamiento local
   const loadStocksFromStorage = () => {
@@ -82,7 +84,7 @@ const Index = () => {
       setUsingSampleData(usingSampleDataFlag);
       
       if (usingSampleDataFlag) {
-        toast.warning("Usando algunos datos simulados debido a limitaciones de la API. Los datos disponibles son los mostrados.");
+        toast.warning("Usando datos simulados debido a limitaciones de las API. El acceso a Yahoo Finance está restringido desde el navegador.");
       } else {
         toast.success("Datos financieros actualizados");
       }
@@ -107,6 +109,9 @@ const Index = () => {
   // Refrescar todos los datos
   const handleRefreshData = () => {
     loadStocksFromStorage();
+    // Forzar actualización incluso si la lista no cambió
+    setRefreshTrigger(prev => prev + 1);
+    toast.info("Actualizando datos...");
   };
 
   const selectedStockAnalysis = selectedStock 
@@ -147,7 +152,7 @@ const Index = () => {
               </p>
               {usingSampleData && (
                 <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-300">
-                  <strong>Nota:</strong> Algunos datos pueden ser simulados debido a limitaciones en la API de Yahoo Finance. Se muestra la información disponible.
+                  <strong>Nota:</strong> Se están usando datos simulados debido a restricciones de acceso a Yahoo Finance desde el navegador. Para datos reales, se necesitaría un servidor backend.
                 </div>
               )}
             </div>
