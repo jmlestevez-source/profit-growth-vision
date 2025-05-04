@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      // Proxy más específico para Yahoo Finance
+      // Proxy específico para Yahoo Finance
       '/yahoo-proxy': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
