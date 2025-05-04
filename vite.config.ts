@@ -21,9 +21,12 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    // Provide a shim for the process.env that yahoo-finance2 is trying to use
+    // Provide proper shims for the process object Yahoo Finance might be using
     'process.env': {},
     'process.browser': true,
     'process': { env: {} }
+  },
+  optimizeDeps: {
+    exclude: ['yahoo-finance2'] // Exclude yahoo-finance2 from optimization to avoid node dependency issues
   },
 }));
