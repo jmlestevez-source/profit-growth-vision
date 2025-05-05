@@ -1,0 +1,66 @@
+
+# Instrucciones para configurar el Backend Flask
+
+Para obtener datos financieros reales, necesitas ejecutar un servidor backend en Python con Flask:
+
+1. **Crea un nuevo archivo llamado `app.py` con el siguiente contenido**:
+
+```python
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import yfinance as yf
+import os
+
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})  # Permite CORS para todo
+
+# Configuración manual
+yf.pdr_override()  # Fix para problemas de descarga
+os.environ['TZ'] = 'UTC'  # FIX zona horaria
+
+@app.route('/api/financials', methods=['GET'])
+def get_financials():
+    symbol = request.args.get('symbol', 'AAPL')  # Default: Apple
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Datos esenciales con verificación
+        data = {
+            "financials": ticker.financials.to_dict() if not ticker.financials.empty else {},
+            "quarterly_financials": ticker.quarterly_financials.to_dict() if not ticker.quarterly_financials.empty else {},
+            "history": ticker.history(period="1y").to_dict(),
+            "info": ticker.info
+        }
+        
+        return jsonify({"status": "success", "data": data})
+    
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error interno: {str(e)}"}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+```
+
+2. **Instala las dependencias necesarias**:
+```bash
+pip install flask flask-cors yfinance pandas
+```
+
+3. **Ejecuta el servidor Flask**:
+```bash
+python app.py
+```
+
+4. **Verifica el servidor**:
+   - El servidor debería iniciarse en http://localhost:5000
+   - Prueba acceder a http://localhost:5000/api/financials?symbol=AAPL en tu navegador
+   - Deberías ver datos JSON con información financiera de Apple
+
+5. **Configura el frontend**:
+   - El frontend ya está configurado para comunicarse con el backend en localhost:5000
+   - Si cambias el puerto del servidor Flask, actualiza el archivo vite.config.ts
+
+NOTAS:
+- El backend debe estar ejecutándose mientras usas la aplicación
+- Si recibes errores de CORS, verifica la configuración de CORS en Flask
+- Para usar en producción, considera desplegar el backend en un servicio como Heroku o Railway

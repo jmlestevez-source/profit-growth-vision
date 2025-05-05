@@ -10,20 +10,11 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      // Proxy específico para Yahoo Finance
-      '/yahoo-proxy': {
-        target: 'https://query1.finance.yahoo.com',
+      // Proxy para el backend de Flask 
+      '/api': {
+        target: 'http://localhost:5000', // Asumiendo que Flask corre en el puerto 5000
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/yahoo-proxy/, ''),
-        secure: false,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Connection': 'keep-alive',
-          'Accept-Language': 'en-US,en;q=0.9,es;q=0.8'
-        }
+        secure: false
       }
     }
   },
